@@ -1,119 +1,102 @@
-import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Route, Routes, Link } from 'react-router-dom';
-import Results from './Results';
-import Table from './Table';
-import Favorites from './Favorites';
-import Statistics from './Statistics';
-import data from './data.json';
-import './styles.css'; 
+// Import required libraries
+import React, { useState, useEffect } from "react";
+import "bootstrap/dist/css/bootstrap.min.css";
 
-function MatchList({ data, onSave }) {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filteredData, setFilteredData] = useState(data);
-
-  // Filtrování dat podle vyhledávacího výrazu
-  useEffect(() => {
-    setFilteredData(
-      data.filter(match =>
-        match.team1.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        match.team2.toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    );
-  }, [searchTerm, data]);
-
-  return (
-    <div>
-      <input
-        type="text"
-        placeholder="Hledat..."
-        value={searchTerm}
-        onChange={e => setSearchTerm(e.target.value)}
-        className="search-input"
-      />
-      {filteredData.map((match, index) => (
-        <div key={index} className="card">
-          <h2>{match.team1} vs {match.team2}</h2>
-          <p>Skóre: {match.score}</p>
-          <button onClick={() => onSave(match)} className="save-btn">Uložit</button>
-        </div>
-      ))}
-    </div>
-  );
-}
-
+// Main App Component
 function App() {
-  const [darkMode, setDarkMode] = useState(false);
-  const [favorites, setFavorites] = useState([]);
+  const [apis, setApis] = useState([]);
+  const [history, setHistory] = useState(() => {
+    const savedHistory = localStorage.getItem("apiHistory");
+    return savedHistory ? JSON.parse(savedHistory) : [];
+  });
 
+  // Fetch data from APIs.guru
   useEffect(() => {
-    const storedFavorites = localStorage.getItem('favorites');
-    if (storedFavorites) {
-      setFavorites(JSON.parse(storedFavorites));
-    }
+    fetch("https://api.apis.guru/v2/list")
+      .then((response) => response.json())
+      .then((data) => setApis(Object.values(data)))
+      .catch((error) => console.error("Error fetching API data:", error));
   }, []);
 
-  const toggleDarkMode = () => {
-    setDarkMode(!darkMode);
-    if (!darkMode) {
-      document.body.classList.add('dark-mode');
-    } else {
-      document.body.classList.remove('dark-mode');
-    }
+  // Add API to history
+  const addToHistory = (api) => {
+    const newHistory = [...history, { ...api, rating: null }];
+    setHistory(newHistory);
+    localStorage.setItem("apiHistory", JSON.stringify(newHistory));
   };
 
-  const saveToFavorites = (match) => {
-    const updatedFavorites = [...favorites, match];
-    setFavorites(updatedFavorites);
-    localStorage.setItem('favorites', JSON.stringify(updatedFavorites));
+  // Update rating in history
+  const updateRating = (index, rating) => {
+    const updatedHistory = history.map((item, i) =>
+      i === index ? { ...item, rating } : item
+    );
+    setHistory(updatedHistory);
+    localStorage.setItem("apiHistory", JSON.stringify(updatedHistory));
   };
 
-  const removeFromFavorites = (index) => {
-    const updatedFavorites = favorites.filter((_, i) => i !== index);
-    setFavorites(updatedFavorites);
-    localStorage.setItem('favorites', JSON.stringify(updatedFavorites));
+  // Remove item from history
+  const removeFromHistory = (index) => {
+    const updatedHistory = history.filter((_, i) => i !== index);
+    setHistory(updatedHistory);
+    localStorage.setItem("apiHistory", JSON.stringify(updatedHistory));
   };
 
   return (
-    <Router>
-      <div className={`app-container ${darkMode ? 'dark-mode' : ''}`}>
-        <nav className={`navbar ${darkMode ? 'dark-mode-navbar' : ''}`}>
-          <ul className="navbar-list">
-            <li className="navbar-item">
-              <Link to="/" className="navbar-link">Domů</Link>
+    <div className="container py-5">
+      <h1 className="text-center mb-4">APIs Explorer</h1>
+
+      {/* Display API list */}
+      <h2>Available APIs</h2>
+      <ul className="list-group mb-4">
+        {apis.slice(0, 10).map((api, index) => (
+          <li key={index} className="list-group-item d-flex justify-content-between align-items-center">
+            <span>{api.info.title}</span>
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={() => addToHistory(api.info)}
+            >
+              Add to History
+            </button>
+          </li>
+        ))}
+      </ul>
+
+      {/* Display history */}
+      <h2>History</h2>
+      {history.length > 0 ? (
+        <ul className="list-group">
+          {history.map((item, index) => (
+            <li key={index} className="list-group-item d-flex flex-column">
+              <div className="d-flex justify-content-between align-items-center">
+                <span>{item.title}</span>
+                <button
+                  className="btn btn-danger btn-sm"
+                  onClick={() => removeFromHistory(index)}
+                >
+                  Delete
+                </button>
+              </div>
+              <div className="mt-2">
+                <label htmlFor={`rating-${index}`} className="form-label">
+                  Rating:
+                </label>
+                <input
+                  type="number"
+                  id={`rating-${index}`}
+                  className="form-control"
+                  min="1"
+                  max="5"
+                  value={item.rating || ""}
+                  onChange={(e) => updateRating(index, e.target.value)}
+                />
+              </div>
             </li>
-            <li className="navbar-item">
-              <Link to="/results" className="navbar-link">Výsledky</Link>
-            </li>
-            <li className="navbar-item">
-              <Link to="/table" className="navbar-link">Tabulka</Link>
-            </li>
-            <li className="navbar-item">
-              <Link to="/favorites" className="navbar-link">Oblíbené</Link>
-            </li>
-            <li className="navbar-item">
-              <Link to="/statistics" className="navbar-link">Statistiky</Link>
-            </li>
-            <li className="navbar-item">
-              <button onClick={toggleDarkMode} className="navbar-link mode-toggle-btn">
-                Přepnout na {darkMode ? 'světlý' : 'tmavý'} režim
-              </button>
-            </li>
-          </ul>
-        </nav>
-        <h1 className='name'>Mistrovství světa v ledním hokeji 2024</h1>
-        <div className="logo">
-          <img src="https://mzv.gov.cz/public/bb/7f/9e/5393291_3196123_BOB.png" alt="logo" />
-        </div>
-        <Routes>
-          <Route path="/" element={<MatchList data={data} onSave={saveToFavorites} />} />
-          <Route path="/results" element={<Results />} />
-          <Route path="/table" element={<Table />} />
-          <Route path="/favorites" element={<Favorites favorites={favorites} onRemove={removeFromFavorites} />} />
-          <Route path="/statistics" element={<Statistics />} />
-        </Routes>
-      </div>
-    </Router>
-    
+          ))}
+        </ul>
+      ) : (
+        <p>No history yet.</p>
+      )}
+    </div>
   );
 }
 
